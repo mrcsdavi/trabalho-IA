@@ -251,139 +251,93 @@ def busca_largura(mundo):
     return None, tempo, nos_expandidos
 
 def busca_aestrela(mundo):
-    print("[A*] Iniciando busca A* com heurística h_max (otimizada)...")
+    print("[A*] Iniciando busca A* com heurística h_max...")
     inicio = time.time()
     nos_expandidos = 0
-    
-    # ---------- 1️⃣ Cache do h_max ----------
-    h_cache = {}
-    
-    # ---------- 2️⃣ Otimizar representação de estados ----------
-    # Converter listas para frozenset para hash mais eficiente
-    estado_inicial = frozenset(mundo.estado_inicial_int)
-    objetivos = frozenset(p for p in mundo.estado_final_int if p > 0)
-    
-    # ---------- Pré-processar ações ----------
-    acoes = []
-    for acao in mundo.acoes_preparadas:
-        pre_set = frozenset(p for p in acao['pre'] if p > 0)
-        add_set = frozenset(acao['add'])
-        acoes.append({
-            'nome': acao.get('nome', ''),
-            'pre': pre_set,
-            'add': add_set
-        })
-    
-    # ---------- Função h_max otimizada ----------
-    def h_max(estado_set):
-        # Verificar cache primeiro
-        estado_key = estado_set
-        if estado_key in h_cache:
-            return h_cache[estado_key]
-        
+
+    def h_max(estado):
+        # Estado inicial da heurística: custo 0 para fatos verdadeiros
         custo = {}
-        # Inicialização otimizada
-        for p in estado_set:
-            custo[p] = 0
-        
-        # Loop principal otimizado
+        fronteira = []
+
+        for p in mundo.para_numero.values():
+            if p in estado:
+                custo[p] = 0
+                fronteira.append(p)
+            else:
+                custo[p] = float('inf')
+
+        # Relaxação: aplicar ações sem deletar nada
         mudou = True
         while mudou:
             mudou = False
-            for acao in acoes:
-                # Verificar se todas as pré-condições são alcançáveis
+            for acao in mundo.acoes_preparadas:
+                # testar se precondições são alcançáveis
                 pre_custos = []
+                ok = True
                 for pre in acao['pre']:
-                    if pre not in custo:
-                        pre_custos = None
-                        break
-                    pre_custos.append(custo[pre])
-                
-                if pre_custos is None:
-                    continue  # Pré-condição inalcançável
-                
-                # Calcular custo mínimo para executar ação
-                custo_acao = max(pre_custos) if pre_custos else 0
-                
-                # Atualizar custos para os efeitos
+                    if pre > 0:
+                        if custo[pre] == float('inf'):
+                            ok = False
+                            break
+                        pre_custos.append(custo[pre])
+                    else:
+                        # pré-condição negativa ignorada na relaxação
+                        pass
+                if not ok:
+                    continue
+
+                custo_acao = 0 if not pre_custos else max(pre_custos)
+
                 for a in acao['add']:
-                    if a not in custo or custo[a] > custo_acao + 1:
+                    if custo[a] > custo_acao + 1:
                         custo[a] = custo_acao + 1
                         mudou = True
-        
-        # Calcular heurística para objetivos
-        h_val = 0
-        for objetivo in objetivos:
-            if objetivo in custo:
-                h_val = max(h_val, custo[objetivo])
+
+        # custo para atingir todos os objetivos
+        h = 0
+        for objetivo in mundo.estado_final_int:
+            if objetivo > 0:
+                h = max(h, custo[objetivo])
             else:
-                # ---------- 3️⃣ Podar estados com h = ∞ ----------
-                h_val = float('inf')
-                break
-        
-        # Armazenar em cache
-        h_cache[estado_key] = h_val
-        return h_val
-    
-    # ---------- 4️⃣ Evitar ordenações desnecessárias ----------
-    # Usar heap com estrutura de dados eficiente
-    class Node:
-        __slots__ = ('f', 'g', 'estado', 'caminho')
-        def __init__(self, f, g, estado, caminho):
-            self.f = f
-            self.g = g
-            self.estado = estado
-            self.caminho = caminho
-        
-        def __lt__(self, other):
-            return self.f < other.f
-    
-    # Estado inicial
+                # meta negativa: ignorada na relaxação
+                pass
+
+        return h if h != float('inf') else 999999
+
+    estado_inicial = mundo.estado_inicial_int
     h_inicial = h_max(estado_inicial)
-    if h_inicial == float('inf'):
-        print("[A*] Objetivos inalcançáveis do estado inicial")
-        return None, 0, 0
-    
+
     fronteira = []
-    heapq.heappush(fronteira, Node(h_inicial, 0, estado_inicial, []))
-    g_melhor = {estado_inicial: 0}
+    heapq.heappush(fronteira, (h_inicial, 0, tuple(estado_inicial), []))
+    g_melhor = {tuple(estado_inicial): 0}
     fechados = set()
-    
+
     while fronteira:
-        no = heapq.heappop(fronteira)
-        
-        if no.estado in fechados:
+        f, g, estado_tupla, caminho = heapq.heappop(fronteira)
+
+        if estado_tupla in fechados:
             continue
-        
-        fechados.add(no.estado)
+
+        estado = list(estado_tupla)
+        fechados.add(estado_tupla)
         nos_expandidos += 1
-        
-        # Verificar se é objetivo
-        if all(obj in no.estado for obj in objetivos):
+
+        if mundo.estado_eh_objetivo(estado):
             tempo = time.time() - inicio
-            print(f"[A*] Solução encontrada! Nós: {nos_expandidos}, Tempo: {tempo:.3f}s")
-            return no.caminho, tempo, nos_expandidos
-        
-        # Gerar sucessores
-        estado_lista = list(no.estado)
-        for acao, novo_estado_lista in mundo.gerar_sucessores(estado_lista):
-            novo_estado = frozenset(novo_estado_lista)
-            novo_g = no.g + 1
-            
-            # Verificar se é melhor caminho
-            if novo_estado not in g_melhor or novo_g < g_melhor[novo_estado]:
-                g_melhor[novo_estado] = novo_g
-                
-                # Calcular heurística
-                h_val = h_max(novo_estado)
-                
-                if h_val == float('inf'):
-                    continue  # Podar estado inalcançável
-                
-                f_score = novo_g + h_val
-                novo_caminho = no.caminho + [acao]
-                heapq.heappush(fronteira, Node(f_score, novo_g, novo_estado, novo_caminho))
-    
+            print(f"[A*] Solução encontrada! Nós expandidos: {nos_expandidos}, Tempo: {tempo:.3f}s")
+            return caminho, tempo, nos_expandidos
+
+        for acao, novo_estado in mundo.gerar_sucessores(estado):
+            novo_tupla = tuple(novo_estado)
+            novo_g = g + 1
+
+            if novo_tupla not in g_melhor or novo_g < g_melhor[novo_tupla]:
+                g_melhor[novo_tupla] = novo_g
+                h = h_max(novo_estado)
+                f_score = novo_g + h
+                heapq.heappush(fronteira, (f_score, novo_g, novo_tupla, caminho + [acao]))
+
     tempo = time.time() - inicio
     print(f"[A*] Nenhuma solução encontrada. Nós: {nos_expandidos}, Tempo: {tempo:.3f}s")
     return None, tempo, nos_expandidos
@@ -520,9 +474,6 @@ def busca_bidirecional(mundo):
         print("[BIDIRECIONAL] Estado inicial já é objetivo!")
         return [], time.time() - inicio, 1
     
-    # ---------- PRIMEIRA ETAPA: Encontrar um estado objetivo ----------
-    # A busca reversa precisa começar de um estado objetivo concreto
-    # Usamos BFS para encontrar o primeiro estado objetivo
     
     print("[BIDIRECIONAL] Buscando estado objetivo para iniciar busca reversa...")
     
@@ -564,7 +515,7 @@ def busca_bidirecional(mundo):
     
     # Função para gerar predecessores (busca reversa)
     def gerar_predecessores(estado_set):
-        """Gera estados predecessores do estado atual (busca reversa)"""
+
         predecessores = []
         estado_lista = list(estado_set)
         

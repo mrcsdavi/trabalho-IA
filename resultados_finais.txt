@@ -4,7 +4,7 @@ RESULTADOS FINAIS - PLANEJADOR MUNDO DOS BLOCOS
 
  ARQUIVO: problemas/blocks-4-0.strips
  SOLUCAO ENCONTRADA
- Tempo: 0.057 segundos
+ Tempo: 0.054 segundos
  Nos expandidos: 42
  Acoes: 6
 
