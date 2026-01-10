@@ -1,0 +1,20 @@
+================================================================================
+RESULTADOS FINAIS - PLANEJADOR MUNDO DOS BLOCOS
+================================================================================
+
+ ARQUIVO: problemas/blocks-4-0.strips
+ SOLUCAO ENCONTRADA
+ Tempo: 0.057 segundos
+ Nos expandidos: 42
+ Acoes: 6
+
+ ACOES:
+   1. pick-up_b
+   2. stack_b_a
+   3. pick-up_c
+   4. stack_d_c
+   5. pick-up_d
+   6. stack_c_b
+
+--------------------------------------------------------------------------------
+
