@@ -1,5 +1,5 @@
-from collections import deque
-from sortedcontainers import SortedSet # biblioteca para importar arvores balanceadas
+from collections import deque 
+from sortedcontainers import SortedSet 
 import heapq
 import time
 import os
